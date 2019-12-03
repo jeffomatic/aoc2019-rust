@@ -21,11 +21,7 @@ impl FromStr for Segment {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         lazy_static! {
-          /*
-            Step I must be finished before step Q can begin.
-            Step B must be finished before step O can begin.
-          */
-          static ref RE: Regex = Regex::new(r"(?P<dir>[UDLR])(?P<length>\d+)").unwrap();
+            static ref RE: Regex = Regex::new(r"(?P<dir>[UDLR])(?P<length>\d+)").unwrap();
         }
 
         let caps = match RE.captures(s) {
