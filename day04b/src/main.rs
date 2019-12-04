@@ -29,15 +29,13 @@ fn sequences(v: &Vec<i64>) -> Vec<Vec<i64>> {
     let mut last = -1;
 
     for n in v.iter() {
-        if *n == last {
-            seq.push(*n);
-        } else {
+        if *n != last {
             if !seq.is_empty() {
                 res.push(seq);
             }
-            seq = vec![*n];
+            seq = Vec::new();
         }
-
+        seq.push(*n);
         last = *n;
     }
 
