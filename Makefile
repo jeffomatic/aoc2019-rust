@@ -5,4 +5,4 @@ no_default:
 
 $(folders):
 	@ cargo build --manifest-path $@/Cargo.toml
-	@ if [ -f $@/input ]; then cat $@/input | $@/target/debug/$@; else $@/target/debug/$@; fi
+	@ if [ -f $@/input ]; then cat $@/input | RUST_BACKTRACE=1 $@/target/debug/$@; else RUST_BACKTRACE=1 $@/target/debug/$@; fi
