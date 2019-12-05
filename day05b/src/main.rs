@@ -6,6 +6,10 @@ enum Opcode {
     Mul,
     Read,
     Print,
+    Jnz,
+    Jz,
+    Lt,
+    Eq,
     Exit,
 }
 
@@ -42,6 +46,10 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
             2 => Opcode::Mul,
             3 => Opcode::Read,
             4 => Opcode::Print,
+            5 => Opcode::Jnz,
+            6 => Opcode::Jz,
+            7 => Opcode::Lt,
+            8 => Opcode::Eq,
             99 => Opcode::Exit,
             _ => panic!("address {}: invalid opcode {}", ip, modes_op),
         };
@@ -84,6 +92,30 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
                 output.push(mem[src]);
                 ip += 2;
             }
+            Opcode::Jnz => {
+                let a = param_value(&mem, ip + 1, immediate_params[0]);
+                let b = param_value(&mem, ip + 2, immediate_params[1]);
+                ip = if a != 0 { b as usize } else { ip + 3 }
+            }
+            Opcode::Jz => {
+                let a = param_value(&mem, ip + 1, immediate_params[0]);
+                let b = param_value(&mem, ip + 2, immediate_params[1]);
+                ip = if a == 0 { b as usize } else { ip + 3 };
+            }
+            Opcode::Lt => {
+                let a = param_value(&mem, ip + 1, immediate_params[0]);
+                let b = param_value(&mem, ip + 2, immediate_params[1]);
+                let dst = mem[ip + 3] as usize;
+                mem[dst] = if a < b { 1 } else { 0 };
+                ip += 4;
+            }
+            Opcode::Eq => {
+                let a = param_value(&mem, ip + 1, immediate_params[0]);
+                let b = param_value(&mem, ip + 2, immediate_params[1]);
+                let dst = mem[ip + 3] as usize;
+                mem[dst] = if a == b { 1 } else { 0 };
+                ip += 4;
+            }
             Opcode::Exit => return output,
         };
     }
@@ -91,6 +123,6 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
 
 fn main() {
     let mem: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
-    let output = run(&mem, &vec![1]);
+    let output = run(&mem, &vec![5]);
     println!("{:?}", output)
 }
