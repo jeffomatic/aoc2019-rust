@@ -1,36 +1,24 @@
 use std::io::{self, Read};
 
-#[derive(Debug)]
-enum Opcode {
-    Add,
-    Mul,
-    Read,
-    Print,
-    Jnz,
-    Jz,
-    Lt,
-    Eq,
-    Exit,
-}
-
 fn get_input() -> String {
     let mut input = String::new();
     io::stdin().lock().read_to_string(&mut input).unwrap();
-    return input.trim().to_string();
+    input.trim().to_string()
 }
 
 fn param_value(mem: &Vec<i64>, addr: usize, immediate: bool) -> i64 {
     let v = mem[addr];
     if immediate {
-        return v;
+        v
+    } else {
+        if v < 0 {
+            panic!(
+                "address {} has contains negative address value: {}",
+                addr, v
+            )
+        }
+        mem[v as usize]
     }
-    if v < 0 {
-        panic!(
-            "address {} has contains negative address value: {}",
-            addr, v
-        )
-    }
-    mem[v as usize]
 }
 
 fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
@@ -41,26 +29,15 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
 
     loop {
         let modes_op = mem[ip];
-        let opcode = match modes_op % 100 {
-            1 => Opcode::Add,
-            2 => Opcode::Mul,
-            3 => Opcode::Read,
-            4 => Opcode::Print,
-            5 => Opcode::Jnz,
-            6 => Opcode::Jz,
-            7 => Opcode::Lt,
-            8 => Opcode::Eq,
-            99 => Opcode::Exit,
-            _ => panic!("address {}: invalid opcode {}", ip, modes_op),
-        };
         let immediate_params = [
             (modes_op % 1000) >= 100,
             (modes_op % 10000) >= 1000,
             modes_op >= 10000,
         ];
 
-        match opcode {
-            Opcode::Add => {
+        match modes_op % 100 {
+            // add
+            1 => {
                 if immediate_params[2] {
                     panic!("address {}: invalid opcode {}", ip, modes_op)
                 }
@@ -71,7 +48,8 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
                 mem[dst] = a + b;
                 ip += 4;
             }
-            Opcode::Mul => {
+            // multiply
+            2 => {
                 if immediate_params[2] {
                     panic!("address {}: invalid opcode {}", ip, modes_op)
                 }
@@ -82,41 +60,58 @@ fn run(mem: &Vec<i64>, input: &Vec<i64>) -> Vec<i64> {
                 mem[dst] = a * b;
                 ip += 4;
             }
-            Opcode::Read => {
+            // read input
+            3 => {
                 let dst = mem[ip + 1] as usize;
                 mem[dst] = input.pop().unwrap();
                 ip += 2;
             }
-            Opcode::Print => {
+            // write output
+            4 => {
                 let src = mem[ip + 1] as usize;
                 output.push(mem[src]);
                 ip += 2;
             }
-            Opcode::Jnz => {
+            // jump-if-nonzero
+            5 => {
                 let a = param_value(&mem, ip + 1, immediate_params[0]);
                 let b = param_value(&mem, ip + 2, immediate_params[1]);
                 ip = if a != 0 { b as usize } else { ip + 3 }
             }
-            Opcode::Jz => {
+            // jump-if-zero
+            6 => {
                 let a = param_value(&mem, ip + 1, immediate_params[0]);
                 let b = param_value(&mem, ip + 2, immediate_params[1]);
                 ip = if a == 0 { b as usize } else { ip + 3 };
             }
-            Opcode::Lt => {
+            // less than
+            7 => {
+                if immediate_params[2] {
+                    panic!("address {}: invalid opcode {}", ip, modes_op)
+                }
+
                 let a = param_value(&mem, ip + 1, immediate_params[0]);
                 let b = param_value(&mem, ip + 2, immediate_params[1]);
                 let dst = mem[ip + 3] as usize;
                 mem[dst] = if a < b { 1 } else { 0 };
                 ip += 4;
             }
-            Opcode::Eq => {
+            // equal
+            8 => {
+                if immediate_params[2] {
+                    panic!("address {}: invalid opcode {}", ip, modes_op)
+                }
+
                 let a = param_value(&mem, ip + 1, immediate_params[0]);
                 let b = param_value(&mem, ip + 2, immediate_params[1]);
                 let dst = mem[ip + 3] as usize;
                 mem[dst] = if a == b { 1 } else { 0 };
                 ip += 4;
             }
-            Opcode::Exit => return output,
+            // exit
+            99 => return output,
+            // default
+            _ => panic!("address {}: invalid opcode {}", ip, modes_op),
         };
     }
 }
