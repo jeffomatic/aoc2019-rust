@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io::{self, Read};
 
 fn get_input() -> String {
@@ -21,14 +21,10 @@ fn ancestors<'a>(k: &str, parents: &HashMap<&str, &'a str>) -> Vec<&'a str> {
 fn main() {
     let input = get_input();
     let mut parents: HashMap<&str, &str> = HashMap::new();
-    let mut all_children = HashSet::new();
 
     for line in input.lines() {
         let toks: Vec<&str> = line.split(")").collect();
-        let parent = toks[0];
-        let child = toks[1];
-        all_children.insert(child);
-        parents.insert(child, parent);
+        parents.insert(toks[1], toks[0]);
     }
 
     // find nearest common ancestor
