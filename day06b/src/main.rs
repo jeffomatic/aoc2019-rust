@@ -7,6 +7,17 @@ fn get_input() -> String {
     input.trim().to_string()
 }
 
+fn ancestors<'a>(k: &str, parents: &HashMap<&str, &'a str>) -> Vec<&'a str> {
+    match parents.get(k) {
+        None => Vec::new(),
+        Some(p) => {
+            let mut res = ancestors(p, parents).to_owned();
+            res.push(p);
+            res
+        }
+    }
+}
+
 fn main() {
     let input = get_input();
     let mut parents: HashMap<&str, &str> = HashMap::new();
@@ -20,19 +31,20 @@ fn main() {
         parents.insert(child, parent);
     }
 
-    let mut orbits = 0;
-    for c in all_children.iter() {
-        let mut cur = c;
-        loop {
-            match parents.get(cur) {
-                None => break,
-                Some(p) => {
-                    orbits += 1;
-                    cur = p;
-                }
-            }
+    // find nearest common ancestor
+    let you_ancestors = ancestors("YOU", &parents);
+    let san_ancestors = ancestors("SAN", &parents);
+    let mut nearest = 0;
+    loop {
+        if you_ancestors[nearest + 1] != san_ancestors[nearest + 1] {
+            break;
         }
+        nearest += 1;
     }
 
-    println!("{:?}", orbits);
+    println!(
+        "{}",
+        (you_ancestors.len() - nearest - 1) // de-orbits to common ancestor
+        + (san_ancestors.len() - nearest - 1) // do-orbits to target
+    );
 }
