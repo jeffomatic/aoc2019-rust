@@ -39,9 +39,16 @@ impl Simulation {
         }
     }
 
-    fn run(&mut self, input: &mut VecDeque<i64>, output: &mut VecDeque<i64>) {
+    fn run(
+        &mut self,
+        input: &VecDeque<i64>,
+        output: &VecDeque<i64>,
+    ) -> (VecDeque<i64>, VecDeque<i64>) {
+        let mut input = input.to_owned();
+        let mut output = output.to_owned();
+
         if self.halted {
-            return;
+            return (input, output);
         }
 
         loop {
@@ -80,7 +87,7 @@ impl Simulation {
                 // read input
                 3 => {
                     if input.is_empty() {
-                        return;
+                        return (input, output);
                     }
 
                     let dst = self.mem[self.ip + 1] as usize;
@@ -132,7 +139,7 @@ impl Simulation {
                 // exit
                 99 => {
                     self.halted = true;
-                    return;
+                    return (input, output);
                 }
                 // default
                 _ => panic!("address {}: invalid opcode {}", self.ip, modes_op),
@@ -142,42 +149,34 @@ impl Simulation {
 }
 
 fn simulate(prog: &Vec<i64>, phases: &Vec<i64>) -> i64 {
-    // TODO: figure out how to convince the borrow checker to use arbitrary-length
-    // vectors. This is ugly as hell.
-    let mut sa = Simulation::new(prog);
-    let mut sb = Simulation::new(prog);
-    let mut sc = Simulation::new(prog);
-    let mut sd = Simulation::new(prog);
-    let mut se = Simulation::new(prog);
+    let mut sims: Vec<Simulation> = phases.iter().map(|_| Simulation::new(prog)).collect();
+    let mut signals: Vec<VecDeque<i64>> = phases
+        .iter()
+        .map(|p| {
+            let mut q = VecDeque::new();
+            q.push_back(*p);
+            q
+        })
+        .collect();
 
-    let mut ina = VecDeque::new();
-    let mut inb = VecDeque::new();
-    let mut inc = VecDeque::new();
-    let mut ind = VecDeque::new();
-    let mut ine = VecDeque::new();
-
-    ina.push_back(phases[0]);
-    inb.push_back(phases[1]);
-    inc.push_back(phases[2]);
-    ind.push_back(phases[3]);
-    ine.push_back(phases[4]);
-
-    ina.push_back(0); // initial signal
+    // set initial signal
+    signals[0].push_back(0);
 
     let mut last = -1;
     loop {
-        if sa.halted && sb.halted && sc.halted && sd.halted && se.halted {
+        if sims.iter().all(|s| s.halted) {
             return last;
         }
 
-        sa.run(&mut ina, &mut inb);
-        sb.run(&mut inb, &mut inc);
-        sc.run(&mut inc, &mut ind);
-        sd.run(&mut ind, &mut ine);
-        se.run(&mut ine, &mut ina);
+        for i in 0..sims.len() {
+            let j = (i + 1) % sims.len();
+            let io = sims[i].run(&signals[i], &signals[j]);
+            signals[i] = io.0;
+            signals[j] = io.1;
+        }
 
         // track values emitted by the last simulation
-        if let Some(v) = ina.back() {
+        if let Some(v) = signals[0].back() {
             last = *v;
         }
     }
@@ -185,10 +184,7 @@ fn simulate(prog: &Vec<i64>, phases: &Vec<i64>) -> i64 {
 
 fn main() {
     let prog: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
-    let mut best = -1;
     let mut phases: Vec<i64> = (5..=9).collect();
-    for p in Heap::new(&mut phases) {
-        best = cmp::max(best, simulate(&prog, &p));
-    }
+    let best = Heap::new(&mut phases).fold(-1, |best, p| cmp::max(best, simulate(&prog, &p)));
     println!("{}", best)
 }
