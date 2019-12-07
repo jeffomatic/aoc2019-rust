@@ -9,21 +9,6 @@ fn get_input() -> String {
     input.trim().to_string()
 }
 
-fn param_value(mem: &Vec<i64>, addr: usize, immediate: bool) -> i64 {
-    let v = mem[addr];
-    if immediate {
-        v
-    } else {
-        if v < 0 {
-            panic!(
-                "address {} has contains negative address value: {}",
-                addr, v
-            )
-        }
-        mem[v as usize]
-    }
-}
-
 struct Simulation {
     mem: Vec<i64>,
     ip: usize,
@@ -37,6 +22,13 @@ impl Simulation {
             ip: 0,
             halted: false,
         }
+    }
+
+    fn param_val(&self, v: i64, immediate: bool) -> i64 {
+        if immediate {
+            return v;
+        }
+        self.mem[v as usize]
     }
 
     fn run(
@@ -66,8 +58,8 @@ impl Simulation {
                         panic!("address {}: invalid opcode {}", self.ip, modes_op)
                     }
 
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     let dst = self.mem[self.ip + 3] as usize;
                     self.mem[dst] = a + b;
                     self.ip += 4;
@@ -78,8 +70,8 @@ impl Simulation {
                         panic!("address {}: invalid opcode {}", self.ip, modes_op)
                     }
 
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     let dst = self.mem[self.ip + 3] as usize;
                     self.mem[dst] = a * b;
                     self.ip += 4;
@@ -102,14 +94,14 @@ impl Simulation {
                 }
                 // jump-if-nonzero
                 5 => {
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     self.ip = if a != 0 { b as usize } else { self.ip + 3 }
                 }
                 // jump-if-zero
                 6 => {
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     self.ip = if a == 0 { b as usize } else { self.ip + 3 };
                 }
                 // less than
@@ -118,8 +110,8 @@ impl Simulation {
                         panic!("address {}: invalid opcode {}", self.ip, modes_op)
                     }
 
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     let dst = self.mem[self.ip + 3] as usize;
                     self.mem[dst] = if a < b { 1 } else { 0 };
                     self.ip += 4;
@@ -130,8 +122,8 @@ impl Simulation {
                         panic!("address {}: invalid opcode {}", self.ip, modes_op)
                     }
 
-                    let a = param_value(&self.mem, self.ip + 1, immediate_params[0]);
-                    let b = param_value(&self.mem, self.ip + 2, immediate_params[1]);
+                    let a = self.param_val(self.mem[self.ip + 1], immediate_params[0]);
+                    let b = self.param_val(self.mem[self.ip + 2], immediate_params[1]);
                     let dst = self.mem[self.ip + 3] as usize;
                     self.mem[dst] = if a == b { 1 } else { 0 };
                     self.ip += 4;
