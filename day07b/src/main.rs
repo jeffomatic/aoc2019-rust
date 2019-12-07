@@ -31,16 +31,9 @@ impl Simulation {
         self.mem[v as usize]
     }
 
-    fn run(
-        &mut self,
-        input: &VecDeque<i64>,
-        output: &VecDeque<i64>,
-    ) -> (VecDeque<i64>, VecDeque<i64>) {
-        let mut input = input.to_owned();
-        let mut output = output.to_owned();
-
+    fn run(&mut self, input: &mut VecDeque<i64>, output: &mut VecDeque<i64>) {
         if self.halted {
-            return (input, output);
+            return;
         }
 
         loop {
@@ -79,7 +72,7 @@ impl Simulation {
                 // read input
                 3 => {
                     if input.is_empty() {
-                        return (input, output);
+                        return;
                     }
 
                     let dst = self.mem[self.ip + 1] as usize;
@@ -131,12 +124,41 @@ impl Simulation {
                 // exit
                 99 => {
                     self.halted = true;
-                    return (input, output);
+                    return;
                 }
                 // default
                 _ => panic!("address {}: invalid opcode {}", self.ip, modes_op),
             };
         }
+    }
+}
+
+// To my current knowledge, this is the only way to get mutable references of
+// more than one element in a mutable vec. It has the whiff of a hack and makes
+// me feel a little uncomfortable about the language.
+//
+// See: https://www.reddit.com/r/rust/comments/3jxe4z/mutable_references_to_separate_indices_of_a_vector/
+fn vec_get_mut_multi<T>(v: &mut Vec<T>, mut i: usize, mut j: usize) -> (&mut T, &mut T) {
+    if i == j {
+        panic!("i and j are the same");
+    }
+
+    let swap = i > j;
+    if swap {
+        let tmp = i;
+        i = j;
+        j = tmp;
+    }
+
+    let mid = ((i + j) / 2) + 1;
+    let (head, tail) = v.split_at_mut(mid);
+    let a = &mut head[i];
+    let b = &mut tail[j - mid];
+
+    if swap {
+        (b, a)
+    } else {
+        (a, b)
     }
 }
 
@@ -162,9 +184,8 @@ fn simulate(prog: &Vec<i64>, phases: &Vec<i64>) -> i64 {
 
         for i in 0..sims.len() {
             let j = (i + 1) % sims.len();
-            let io = sims[i].run(&signals[i], &signals[j]);
-            signals[i] = io.0;
-            signals[j] = io.1;
+            let (inq, outq) = vec_get_mut_multi(&mut signals, i, j);
+            sims[i].run(inq, outq);
         }
 
         // track values emitted by the last simulation
