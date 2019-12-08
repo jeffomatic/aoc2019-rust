@@ -14,19 +14,25 @@ fn main() {
     let h = 6;
     let layers: Vec<Vec<u32>> = data.chunks(w * h).map(|v| v.to_owned()).collect();
 
-    let mut min_zeroes = 1000000;
-    let mut min_layer = &layers[0];
-    for lyr in layers.iter() {
-        let nzeros = lyr.iter().filter(|d| **d == 0).count();
-        if nzeros < min_zeroes {
-            min_zeroes = nzeros;
-            min_layer = &lyr;
+    let mut img = Vec::new();
+    for i in 0..(h * w) {
+        for lyr in layers.iter() {
+            if lyr[i] != 2 {
+                img.push(lyr[i]);
+                break;
+            }
         }
     }
 
-    println!(
-        "{}",
-        min_layer.iter().filter(|d| **d == 1).count()
-            * min_layer.iter().filter(|d| **d == 2).count()
-    );
+    for i in 0..h {
+        for j in 0..w {
+            match img[(i * w) + j] {
+                0 => print!(" "),
+                1 => print!("*"),
+                2 => print!("T"),
+                _ => panic!("invalid pixel ({}, {})", i, j),
+            }
+        }
+        print!("\n");
+    }
 }
