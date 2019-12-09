@@ -85,13 +85,6 @@ impl Computer {
             match opcode {
                 // add
                 1 => {
-                    match param_modes[2] {
-                        ParamMode::Immediate => {
-                            panic!("address {}: invalid opcode {}", self.ip, instruction)
-                        }
-                        _ => (),
-                    }
-
                     let a = self.param_as_val(self.ip + 1, param_modes[0]);
                     let b = self.param_as_val(self.ip + 2, param_modes[1]);
                     let dst = self.param_as_dst(self.ip + 3, param_modes[2]);
@@ -100,13 +93,6 @@ impl Computer {
                 }
                 // multiply
                 2 => {
-                    match param_modes[2] {
-                        ParamMode::Immediate => {
-                            panic!("address {}: invalid opcode {}", self.ip, instruction)
-                        }
-                        _ => (),
-                    }
-
                     let a = self.param_as_val(self.ip + 1, param_modes[0]);
                     let b = self.param_as_val(self.ip + 2, param_modes[1]);
                     let dst = self.param_as_dst(self.ip + 3, param_modes[2]);
@@ -144,13 +130,6 @@ impl Computer {
                 }
                 // less than
                 7 => {
-                    match param_modes[2] {
-                        ParamMode::Immediate => {
-                            panic!("address {}: invalid opcode {}", self.ip, instruction)
-                        }
-                        _ => (),
-                    }
-
                     let a = self.param_as_val(self.ip + 1, param_modes[0]);
                     let b = self.param_as_val(self.ip + 2, param_modes[1]);
                     let dst = self.param_as_dst(self.ip + 3, param_modes[2]);
@@ -159,13 +138,6 @@ impl Computer {
                 }
                 // equal
                 8 => {
-                    match param_modes[2] {
-                        ParamMode::Immediate => {
-                            panic!("address {}: invalid opcode {}", self.ip, instruction)
-                        }
-                        _ => (),
-                    }
-
                     let a = self.param_as_val(self.ip + 1, param_modes[0]);
                     let b = self.param_as_val(self.ip + 2, param_modes[1]);
                     let dst = self.param_as_dst(self.ip + 3, param_modes[2]);
