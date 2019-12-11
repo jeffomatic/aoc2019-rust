@@ -232,7 +232,6 @@ fn main() {
     let mut dir = Dir::North;
     let mut pos = (0, 0);
     let mut white_nodes = HashSet::new();
-    let mut painted = HashSet::new();
 
     // paint the initial node white
     white_nodes.insert(pos);
@@ -261,8 +260,6 @@ fn main() {
                 }
             }
 
-            painted.insert(pos);
-
             let turn = match output.pop_front().unwrap() {
                 0 => Turn::Left,
                 1 => Turn::Right,
@@ -274,5 +271,34 @@ fn main() {
         }
     }
 
-    println!("{}", painted.len())
+    let mut min = (10000, 10000);
+    let mut max = (-10000, -10000);
+    for p in white_nodes.iter() {
+        if p.0 < min.0 {
+            min = (p.0, min.1);
+        }
+        if p.0 > max.0 {
+            max = (p.0, max.1);
+        }
+        if p.1 < min.1 {
+            min = (min.0, p.1);
+        }
+        if p.1 > max.1 {
+            max = (max.0, p.1);
+        }
+    }
+
+    let h = max.1 - min.1 + 1;
+    let w = max.0 - min.0 + 1;
+    for i in 0..h {
+        for j in 0..w {
+            let p = (min.0 + j, min.1 + i);
+            if white_nodes.contains(&p) {
+                print!("*");
+            } else {
+                print!(" ");
+            }
+        }
+        print!("\n");
+    }
 }
