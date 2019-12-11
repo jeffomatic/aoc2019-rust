@@ -1,4 +1,6 @@
 use num::integer::gcd;
+use rug::Rational;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io::{self, Read};
 
@@ -8,48 +10,69 @@ fn get_input() -> String {
     input.trim().to_string()
 }
 
-fn scan_order(dimensions: (usize, usize), p: (usize, usize)) -> Vec<(usize, usize)> {
-    let mut res = Vec::new();
-
-    for j in p.0..dimensions.0 {
-        for i in (0..p.1).rev() {
-            res.push((j, i));
-        }
-    }
-    for i in p.1..dimensions.1 {
-        for j in (p.0 + 1)..dimensions.0 {
-            res.push((j, i));
-        }
-    }
-    for j in (0..=p.0).rev() {
-        for i in (p.1 + 1)..dimensions.1 {
-            res.push((j, i));
-        }
-    }
-    for i in (0..=p.1).rev() {
-        for j in (0..p.0).rev() {
-            res.push((j, i));
-        }
-    }
-
-    return res;
+fn delta(from: (usize, usize), to: (usize, usize)) -> (i64, i64) {
+    (to.0 as i64 - from.0 as i64, to.1 as i64 - from.1 as i64)
 }
 
-fn count_visible(p: (usize, usize), map: &Vec<Vec<bool>>) -> usize {
-    let mut slopes = HashSet::new();
-
-    for c in scan_order((map.len(), map[0].len()), p) {
-        if !map[c.1][c.0] {
-            continue;
-        }
-
-        let delta = (c.0 as i64 - p.0 as i64, c.1 as i64 - p.1 as i64);
-        let d = gcd(delta.0, delta.1);
-        let slope = (delta.0 / d, delta.1 / d);
-        slopes.insert(slope);
+// slope is rise / run, so the y-axis component is the first component
+fn slope(from: (usize, usize), to: (usize, usize)) -> (i64, i64) {
+    if from.0 == to.0 {
+        panic!("infinite slope between {:?} and {:?}", from, to);
     }
 
-    return slopes.len();
+    let delta = delta(from, to);
+    let gcd = gcd(delta.0, delta.1);
+    (delta.1 / gcd, delta.0 / gcd)
+}
+
+// sorts slopes from shallowest (negative) to steepest (positive)
+fn cmp_slopes(a: (i64, i64), b: (i64, i64)) -> Ordering {
+    Rational::from(a).cmp(&Rational::from(b))
+}
+
+fn sorted_radial_slopes(dimensions: (usize, usize), center: (usize, usize)) -> Vec<(i64, i64)> {
+    // start with up vector
+    let mut sorted_slopes = vec![(-1, 0)];
+    let mut dedupe = HashSet::new();
+
+    // quadrants I and II
+    let mut q1q2 = Vec::new();
+    for i in 0..dimensions.1 {
+        for j in (center.0 + 1)..dimensions.0 {
+            let slope = slope(center, (j, i));
+            if dedupe.contains(&slope) {
+                continue;
+            }
+
+            q1q2.push(slope);
+            dedupe.insert(slope);
+        }
+    }
+
+    q1q2.sort_by(|a, b| cmp_slopes(*a, *b));
+    sorted_slopes.append(&mut q1q2);
+
+    // add down vector
+    sorted_slopes.push((1, 0));
+
+    // quadrants III and IV
+    let mut q3q4 = Vec::new();
+    for i in 0..dimensions.1 {
+        for j in 0..center.0 {
+            let slope = slope(center, (j, i));
+            if dedupe.contains(&slope) {
+                continue;
+            }
+
+            q3q4.push(slope);
+            dedupe.insert(slope);
+        }
+    }
+
+    q3q4.sort_by(|a, b| cmp_slopes(*a, *b));
+    sorted_slopes.append(&mut q3q4);
+
+    sorted_slopes
 }
 
 fn main() {
@@ -67,21 +90,40 @@ fn main() {
         })
         .collect();
 
-    let mut best_count = 0;
-    let mut best_point = (0, 0);
-    for i in 0..map.len() {
-        for j in 0..map[0].len() {
-            if !map[i][j] {
-                continue;
-            }
+    let station = (19, 11);
+    let scan_until = 200;
+    let h = map.len();
+    let w = map[0].len();
+    let sorted_slopes = sorted_radial_slopes((w, h), station);
+    let mut destroyed = HashSet::new();
 
-            let count = count_visible((j, i), &map);
-            if count > best_count {
-                best_count = count;
-                best_point = (j, i);
+    loop {
+        for slope in sorted_slopes.iter() {
+            // cast a ray using the current slope
+            let mut n = 0;
+            loop {
+                n += 1;
+                let disp = (slope.1 * n, slope.0 * n);
+                let target = (station.0 as i64 + disp.0, station.1 as i64 + disp.1);
+
+                // Ensure we haven't exceeded the map boundaries
+                if target.0 < 0 || w as i64 <= target.0 || target.1 < 0 || h as i64 <= target.1 {
+                    break; // end raycast and advance to next slope in the cycle
+                }
+
+                // See if there is an asteroid and check that it isn't already destroyed
+                if map[target.1 as usize][target.0 as usize] && !destroyed.contains(&target) {
+                    destroyed.insert(target);
+
+                    // If we have hit the limit, we're done
+                    if destroyed.len() == scan_until {
+                        println!("{:?} {}", target, 100 * target.0 + target.1);
+                        return;
+                    }
+
+                    break; // end raycast and advance to next slope in the cycle
+                }
             }
         }
     }
-
-    println!("{:?} {}", best_point, best_count);
 }
