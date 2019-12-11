@@ -1,5 +1,4 @@
 use num::integer::gcd;
-use rug::Rational;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io::{self, Read};
@@ -27,7 +26,9 @@ fn slope(from: (usize, usize), to: (usize, usize)) -> (i64, i64) {
 
 // sorts slopes from shallowest (negative) to steepest (positive)
 fn cmp_slopes(a: (i64, i64), b: (i64, i64)) -> Ordering {
-    Rational::from(a).cmp(&Rational::from(b))
+    (a.0 as f64 / a.1 as f64)
+        .partial_cmp(&(b.0 as f64 / b.1 as f64))
+        .unwrap_or(Ordering::Equal)
 }
 
 fn sorted_radial_slopes(dimensions: (usize, usize), center: (usize, usize)) -> Vec<(i64, i64)> {
