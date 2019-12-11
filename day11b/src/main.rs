@@ -290,7 +290,7 @@ fn main() {
 
     let h = max.1 - min.1 + 1;
     let w = max.0 - min.0 + 1;
-    for i in 0..h {
+    for i in (0..h).rev() {
         for j in 0..w {
             let p = (min.0 + j, min.1 + i);
             if white_nodes.contains(&p) {
