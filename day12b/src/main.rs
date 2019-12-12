@@ -1,5 +1,4 @@
 use num::integer::lcm;
-use std::collections::HashMap;
 
 #[derive(Copy, Clone, Debug)]
 struct Moon {
@@ -31,6 +30,19 @@ fn step(moons: &mut [Moon; 4]) {
     }
 }
 
+fn extract_dim(moons: &[Moon; 4], dim: usize) -> [i64; 8] {
+    [
+        moons[0].pos[dim],
+        moons[0].vel[dim],
+        moons[1].pos[dim],
+        moons[1].vel[dim],
+        moons[2].pos[dim],
+        moons[2].vel[dim],
+        moons[3].pos[dim],
+        moons[3].vel[dim],
+    ]
+}
+
 fn main() {
     /*
     <x=1, y=2, z=-9>
@@ -57,47 +69,28 @@ fn main() {
         },
     ];
 
-    let mut first_seen: [HashMap<[i64; 8], i64>; 3] =
-        [HashMap::new(), HashMap::new(), HashMap::new()];
-    let mut cycles: Vec<Option<(i64, i64)>> = vec![None, None, None];
+    let start_by_dim: Vec<_> = (0..3).map(|n| extract_dim(&moons, n)).collect();
+    let mut cycle_sizes = vec![-1, -1, -1];
     let mut i = 0;
+
     loop {
+        step(&mut moons);
+        i += 1;
+
         for n in 0..3 {
-            let signature = [
-                moons[0].pos[n],
-                moons[0].vel[n],
-                moons[1].pos[n],
-                moons[1].vel[n],
-                moons[2].pos[n],
-                moons[2].vel[n],
-                moons[3].pos[n],
-                moons[3].vel[n],
-            ];
-            match cycles[n] {
-                Some(_) => (),
-                None => {
-                    if first_seen[n].contains_key(&signature) {
-                        cycles[n] = Some((first_seen[n][&signature], i));
-                    } else {
-                        first_seen[n].insert(signature, i);
-                    }
+            if cycle_sizes[n] == -1 {
+                if start_by_dim[n] == extract_dim(&moons, n) {
+                    cycle_sizes[n] = i;
                 }
             }
         }
 
-        if cycles.iter().all(|c| c.is_some()) {
-            println!("{:?}", cycles);
-
-            // From observation, we know that the first-seen position for all
-            // dimensions is the original position, meaning that each dimension
-            // is on a cycle. So the LCM of all 3 numbers should be sufficient.
-            let cycle_length: Vec<i64> =
-                cycles.iter().map(|c| c.unwrap().1 - c.unwrap().0).collect();
-            println!("lcm {}", cycle_length.iter().fold(1, |acc, v| lcm(acc, *v)));
+        if cycle_sizes.iter().all(|s| *s > 0) {
+            println!(
+                "{}",
+                cycle_sizes.iter().fold(1, |acc, s| lcm(acc, *s as i64))
+            );
             return;
         }
-
-        step(&mut moons);
-        i += 1;
     }
 }
