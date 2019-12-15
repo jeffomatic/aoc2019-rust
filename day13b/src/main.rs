@@ -11,7 +11,6 @@ struct Computer {
     mem: Vec<i64>,
     ip: usize,
     relative_base: usize,
-    state: State,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -23,7 +22,6 @@ enum ParamMode {
 
 #[derive(Copy, Clone, Debug)]
 enum State {
-    Ready,
     BlockedOnRead,
     Halted,
 }
@@ -59,7 +57,6 @@ impl Computer {
             mem: mem,
             ip: 0,
             relative_base: 0,
-            state: State::Ready,
         }
     }
 
@@ -80,18 +77,7 @@ impl Computer {
         }
     }
 
-    fn run(&mut self, input: &mut VecDeque<i64>, output: &mut VecDeque<i64>) {
-        match self.state {
-            State::Ready => (),
-            State::BlockedOnRead => {
-                if input.is_empty() {
-                    return;
-                }
-                self.state = State::Ready;
-            }
-            State::Halted => return,
-        }
-
+    fn run(&mut self, input: &mut VecDeque<i64>, output: &mut VecDeque<i64>) -> State {
         loop {
             let instruction = self.mem[self.ip];
             let (opcode, param_modes) = parse_instruction(instruction);
@@ -117,8 +103,7 @@ impl Computer {
                 3 => {
                     // block waiting for input
                     if input.is_empty() {
-                        self.state = State::BlockedOnRead;
-                        return;
+                        return State::BlockedOnRead;
                     }
 
                     let dst = self.param_as_dst(self.ip + 1, param_modes[0]);
@@ -168,8 +153,7 @@ impl Computer {
                 }
                 // exit
                 99 => {
-                    self.state = State::Halted;
-                    return;
+                    return State::Halted;
                 }
                 // default
                 _ => panic!("address {}: invalid opcode {}", self.ip, instruction),
@@ -193,7 +177,7 @@ fn main() {
     let mut paddle_x = 0;
 
     loop {
-        cpu.run(&mut input, &mut output);
+        let state = cpu.run(&mut input, &mut output);
 
         let mut out = Vec::new();
         for v in output.iter() {
@@ -225,7 +209,7 @@ fn main() {
             }
         }
 
-        match cpu.state {
+        match state {
           State::BlockedOnRead => {
             if paddle_x < ball_x {
                 input.push_back(1);
@@ -236,7 +220,6 @@ fn main() {
             }
           }
           State::Halted => break,
-          s => panic!("cpu state did not run to halt or block: {:?}", s)
         }
 
         if nblocks == 0 {
