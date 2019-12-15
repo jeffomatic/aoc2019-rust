@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::{self, Read};
 
 fn get_input() -> String {
@@ -179,28 +179,70 @@ impl Computer {
 }
 
 fn main() {
-    let program: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
+    let mut program: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
+
+    // play for free; set address 0 to 2
+    program[0] = 2;
 
     let mut cpu = Computer::new(&program);
     let mut input: VecDeque<i64> = VecDeque::new();
     let mut output: VecDeque<i64> = VecDeque::new();
 
-    cpu.run(&mut input, &mut output);
-    match cpu.state {
-      State::Halted => (),
-      s => panic!("cpu state is not halted: {:?}", s)
+    let mut score = 0;
+    let mut ball_x = 0;
+    let mut paddle_x = 0;
+
+    loop {
+        cpu.run(&mut input, &mut output);
+
+        let mut out = Vec::new();
+        for v in output.iter() {
+          out.push(*v);
+        }
+
+        let mut nblocks = 0;
+
+        for d in out.chunks(3) {
+            if d[0] == -1 && d[1] == 0 {
+                score = d[2];
+                continue;
+            }
+
+            let x = d[0] as usize;
+
+            // 0 is an empty tile. No game object appears in this tile.
+            // 1 is a wall tile. Walls are indestructible barriers.
+            // 2 is a block tile. Blocks can be broken by the ball.
+            // 3 is a horizontal paddle tile. The paddle is indestructible.
+            // 4 is a ball tile. The ball moves diagonally and bounces off objects.
+            match d[2] {
+                0 => (),
+                1 => (),
+                2 => nblocks += 1,
+                3 => paddle_x = x,
+                4 => ball_x = x,
+                t => panic!("invalid tile: {}", t),
+            }
+        }
+
+        match cpu.state {
+          State::BlockedOnRead => {
+            if paddle_x < ball_x {
+                input.push_back(1);
+            } else if ball_x < paddle_x {
+                input.push_back(-1);
+            } else {
+                input.push_back(0);
+            }
+          }
+          State::Halted => break,
+          s => panic!("cpu state did not run to halt or block: {:?}", s)
+        }
+
+        if nblocks == 0 {
+            break;
+        }
     }
 
-    let mut out = Vec::new();
-    for v in output.iter() {
-      out.push(v);
-    }
-
-    let mut screen = HashMap::new();
-    for d in out.chunks(3) {
-      screen.insert((d[0], d[1]), *d[2]);
-    }
-
-    let c = screen.iter().filter( |(_, t)| **t == 2).count();
-    println!("{}", c);
+    println!("{}", score);
 }
