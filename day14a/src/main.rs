@@ -1,6 +1,5 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::cmp::max;
 use std::collections::HashMap;
 use std::io::{self, Read};
 
@@ -41,6 +40,34 @@ fn get_quantity(quantities: &HashMap<String, i64>, k: &String) -> i64 {
     quantities.get(k).unwrap_or(&0).clone()
 }
 
+// Returns the amount of ore that can be reclaimed based on the available stock
+fn redeem_stock(recipes: &HashMap<String, Recipe>, prev_stock: &HashMap<String, i64>) -> i64 {
+    let ore = "ORE".to_string();
+    let mut next_stock = prev_stock.to_owned();
+    let mut modified = false;
+
+    for (mat, q) in prev_stock {
+        if *mat == ore {
+            continue;
+        }
+
+        let r = recipes.get(mat).unwrap();
+        if *q >= r.output {
+            adjust_quantity(&mut next_stock, &mat, -r.output);
+            for (ing, ing_amt) in r.ingredients.iter() {
+                adjust_quantity(&mut next_stock, &ing, *ing_amt);
+            }
+            modified = true;
+        }
+    }
+
+    if !modified {
+        return *next_stock.get(&ore).unwrap_or(&0);
+    }
+
+    redeem_stock(recipes, &next_stock)
+}
+
 fn main() {
     let fuel = "FUEL".to_string();
     let ore = "ORE".to_string();
@@ -68,9 +95,7 @@ fn main() {
         let mut next: HashMap<String, i64> = HashMap::new();
 
         for (mat, q) in needs.iter() {
-            let have = get_quantity(&stock, mat);
-            let want = max(0, *q - have);
-            adjust_quantity(&mut stock, mat, *q - want);
+            let want = *q;
 
             // There's no recipe for ore, so just move forward if we reach it as
             // a requirement.
@@ -96,7 +121,10 @@ fn main() {
         }
 
         if next.len() == 1 && get_quantity(&next, &ore) > 0 {
-            println!("{}", get_quantity(&next, &ore));
+            println!(
+                "ore after stock redemption: {}",
+                get_quantity(&next, &ore) - redeem_stock(&recipes, &stock)
+            );
             return;
         }
 
