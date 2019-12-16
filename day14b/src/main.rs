@@ -3,6 +3,11 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::io::{self, Read};
 
+lazy_static! {
+    static ref ORE: String = "ORE".to_string();
+    static ref FUEL: String = "FUEL".to_string();
+}
+
 fn get_input() -> String {
     let mut input = String::new();
     io::stdin().lock().read_to_string(&mut input).unwrap();
@@ -42,12 +47,11 @@ fn get_quantity(quantities: &HashMap<String, i64>, k: &String) -> i64 {
 
 // Returns the amount of ore that can be reclaimed based on the available stock
 fn redeem_stock(recipes: &HashMap<String, Recipe>, prev_stock: &HashMap<String, i64>) -> i64 {
-    let ore = "ORE".to_string();
     let mut next_stock = prev_stock.to_owned();
     let mut modified = false;
 
     for (mat, q) in prev_stock {
-        if *mat == ore {
+        if *mat == *ORE {
             continue;
         }
 
@@ -62,16 +66,13 @@ fn redeem_stock(recipes: &HashMap<String, Recipe>, prev_stock: &HashMap<String, 
     }
 
     if !modified {
-        return *next_stock.get(&ore).unwrap_or(&0);
+        return *next_stock.get(&*ORE).unwrap_or(&0);
     }
 
     redeem_stock(recipes, &next_stock)
 }
 
 fn main() {
-    let fuel = "FUEL".to_string();
-    let ore = "ORE".to_string();
-
     let input = get_input();
     let mut recipes = HashMap::new();
 
@@ -86,8 +87,8 @@ fn main() {
         recipes.insert(material, recipe);
     }
 
-    let mut needs = HashMap::new();
-    needs.insert(fuel, 1);
+    let mut needs: HashMap<String, i64> = HashMap::new();
+    needs.insert(FUEL.to_string(), 1);
 
     let mut stock = HashMap::new();
 
@@ -99,8 +100,8 @@ fn main() {
 
             // There's no recipe for ore, so just move forward if we reach it as
             // a requirement.
-            if *mat == ore {
-                adjust_quantity(&mut next, &ore, want);
+            if *mat == *ORE {
+                adjust_quantity(&mut next, &*ORE, want);
                 continue;
             }
 
@@ -120,10 +121,10 @@ fn main() {
             }
         }
 
-        if next.len() == 1 && get_quantity(&next, &ore) > 0 {
+        if next.len() == 1 && get_quantity(&next, &*ORE) > 0 {
             println!(
                 "ore after stock redemption: {}",
-                get_quantity(&next, &ore) - redeem_stock(&recipes, &stock)
+                get_quantity(&next, &*ORE) - redeem_stock(&recipes, &stock)
             );
             return;
         }
