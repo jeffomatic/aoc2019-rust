@@ -1,6 +1,8 @@
 folders = $(shell find . -type d -name "day*" -d 1 | sed 's|^\./||')
+executables = $(patsubst %, %/target/debug/%, $(folders))
+debug_targets = $(patsubst %, debug-%, $(folders))
 
-.PHONY: no_default $(folders)
+.PHONY: no_default $(folders) $(debug_targets)
 no_default:
 
 $(folders):
