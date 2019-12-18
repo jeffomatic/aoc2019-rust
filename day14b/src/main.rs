@@ -151,6 +151,7 @@ fn main() {
 
     while ore_budget > fuel_unit_cost {
         println!("total {} budget {}", total_fuel, ore_budget);
+
         // Spend excess ore
         let fuel_q = ore_budget / fuel_unit_cost;
         total_fuel += fuel_q;
@@ -167,6 +168,9 @@ fn main() {
         byproduct = next_byproduct;
     }
 
-    println!("{}", total_fuel);
-    println!("{:?}", byproduct);
+    // With the given input, the solution produces 2267483.
+    // However, by trial-and-error, the correct answer is 2267486, which is 3 higher.
+    println!("fuel: {}", total_fuel);
+    println!("remaining ore: {}", ore_budget);
+    println!("byproduct: {:?}", byproduct);
 }
