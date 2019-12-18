@@ -37,12 +37,12 @@ struct Recipe {
 }
 
 fn adjust_quantity(quantities: &mut HashMap<String, i64>, k: &String, q: i64) {
-    let prev = quantities.get(k).unwrap_or(&0).clone();
+    let prev = *quantities.get(k).unwrap_or(&0);
     quantities.insert(k.to_string(), prev + q);
 }
 
 fn get_quantity(quantities: &HashMap<String, i64>, k: &String) -> i64 {
-    quantities.get(k).unwrap_or(&0).clone()
+    *quantities.get(k).unwrap_or(&0)
 }
 
 fn redeem_byproduct(
