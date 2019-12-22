@@ -1,4 +1,4 @@
-folders = $(shell find . -type d -name "day*" -d 1 | sed 's|^\./||')
+folders = $(shell find . -maxdepth 1 -type d -name "day*" | sed 's|^\./||')
 executables = $(patsubst %, %/target/debug/%, $(folders))
 debug_targets = $(patsubst %, debug-%, $(folders))
 
