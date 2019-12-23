@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+#[derive(Clone)]
 pub struct Computer {
     mem: Vec<i64>,
     ip: usize,
