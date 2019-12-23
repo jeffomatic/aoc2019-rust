@@ -1,6 +1,6 @@
 use intcode;
 use std::cmp;
-use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::fmt;
 use std::io::{self, Read};
 
@@ -23,12 +23,6 @@ fn move_dir(pos: (i64, i64), dir: Dir) -> (i64, i64) {
         Dir::W => (pos.0 - 1, pos.1),
         Dir::E => (pos.0 + 1, pos.1),
     }
-}
-
-#[derive(Debug)]
-struct Map {
-    grid: HashMap<(i64, i64), Vec<Dir>>,
-    goal: Option<(i64, i64)>,
 }
 
 struct PathSearchNode {
@@ -62,11 +56,17 @@ impl PartialOrd for PathSearchNode {
     }
 }
 
+#[derive(Debug)]
+struct Map {
+    open: HashSet<(i64, i64)>,
+    goal: Option<(i64, i64)>,
+}
+
 impl Map {
     fn extrema(&self) -> ((i64, i64), (i64, i64)) {
         let mut min = (i64::max_value(), i64::max_value());
         let mut max = (i64::min_value(), i64::min_value());
-        for p in self.grid.keys() {
+        for p in self.open.iter() {
             if p.0 < min.0 {
                 min = (p.0, min.1);
             }
@@ -85,13 +85,13 @@ impl Map {
     }
 
     fn scan(&mut self, cpu: &intcode::Computer, pos: (i64, i64)) {
-        self.grid.insert(pos, Vec::new());
+        self.open.insert(pos);
         let mut next = Vec::new();
 
         for dir in dirs().iter() {
             let dir = *dir;
             let next_pos = move_dir(pos, dir);
-            if self.grid.contains_key(&next_pos) {
+            if self.open.contains(&next_pos) {
                 continue;
             }
 
@@ -113,11 +113,11 @@ impl Map {
             match output.pop_front().unwrap() {
                 0 => (),
                 1 => {
-                    self.grid.get_mut(&pos).unwrap().push(dir);
+                    self.open.insert(next_pos);
                     next.push((next_cpu, next_pos));
                 }
                 2 => {
-                    self.grid.get_mut(&pos).unwrap().push(dir);
+                    self.open.insert(next_pos);
                     next.push((next_cpu, next_pos));
                     self.goal = Some(next_pos);
                 }
@@ -133,7 +133,7 @@ impl Map {
     fn generate(program: &Vec<i64>) -> Map {
         let cpu = intcode::Computer::new(program);
         let mut map = Map {
-            grid: HashMap::new(),
+            open: HashSet::new(),
             goal: None,
         };
         map.scan(&cpu, (0, 0));
@@ -146,26 +146,37 @@ impl Map {
 
         while !q.is_empty() {
             let prev_path = q.pop().unwrap().path;
-            let prev_pos = *prev_path.last().unwrap();
-            if prev_pos == end {
+            let pos = *prev_path.last().unwrap();
+            if pos == end {
                 return prev_path;
             }
 
-            visited.insert(prev_pos);
-
-            let dirs = self.grid.get(&prev_pos).unwrap();
-            for p in dirs.iter().map(|d| move_dir(prev_pos, *d)) {
-                if visited.contains(&p) {
+            for d in dirs().iter() {
+                let next_pos = move_dir(pos, *d);
+                if visited.contains(&next_pos) || !self.open.contains(&next_pos) {
                     continue;
                 }
 
                 let mut path = prev_path.clone();
-                path.push(p);
+                path.push(next_pos);
                 q.push(PathSearchNode::from(path));
             }
+
+            visited.insert(pos);
         }
 
         panic!("could not find path from {:?} to {:?}", start, end)
+    }
+
+    fn max_path(&self, start: (i64, i64)) -> Vec<(i64, i64)> {
+        let mut max = Vec::new();
+        for p in self.open.iter() {
+            let path = self.shortest_path(start, *p);
+            if path.len() > max.len() {
+                max = path;
+            }
+        }
+        max
     }
 }
 
@@ -179,7 +190,7 @@ impl fmt::Display for Map {
                     write!(f, "S")?;
                 } else if p == self.goal.unwrap() {
                     write!(f, "X")?;
-                } else if self.grid.contains_key(&p) {
+                } else if self.open.contains(&p) {
                     write!(f, ".")?;
                 } else {
                     write!(f, "#")?;
@@ -203,12 +214,10 @@ fn main() {
     let map = Map::generate(&program);
     println!("{}", map);
 
-    let start = (0, 0);
-    let path = map.shortest_path(start, map.goal.unwrap());
+    let start = map.goal.unwrap();
     println!(
-        "path from {:?} to {:?}: {} steps",
+        "max path length from {:?}: {}",
         start,
-        map.goal.unwrap(),
-        path.len() - 1, // don't include origin
+        map.max_path(start).len() - 1, // don't include origin
     );
 }
