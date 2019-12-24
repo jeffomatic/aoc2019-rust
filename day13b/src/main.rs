@@ -1,5 +1,4 @@
-use intcode::Computer;
-use std::collections::VecDeque;
+use intcode;
 use std::io::{self, Read};
 
 fn get_input() -> String {
@@ -14,25 +13,27 @@ fn main() {
     // play for free; set address 0 to 2
     program[0] = 2;
 
-    let mut cpu = Computer::new(&program);
-    let mut input: VecDeque<i64> = VecDeque::new();
-    let mut output: VecDeque<i64> = VecDeque::new();
+    let mut cpu = intcode::Computer::new(&program);
+    let mut input = Vec::new();
+    let mut output_log = Vec::new();
 
     let mut score = 0;
     let mut ball_x = 0;
     let mut paddle_x = 0;
 
     loop {
-        let state = cpu.run(&mut input, &mut output);
+        let mut result = cpu.run(&input);
 
-        let mut out = Vec::new();
-        for v in output.iter() {
-            out.push(*v);
+        input = result.unused_input;
+        if !input.is_empty() {
+            panic!("input should have been fully consumed");
         }
 
-        let mut nblocks = 0;
+        // TODO: maintain block state so we don't have to replay the whole log
+        output_log.append(&mut result.output);
 
-        for d in out.chunks(3) {
+        let mut nblocks = 0;
+        for d in output_log.chunks(3) {
             if d[0] == -1 && d[1] == 0 {
                 score = d[2];
                 continue;
@@ -55,14 +56,14 @@ fn main() {
             }
         }
 
-        match state {
+        match result.state {
             intcode::State::BlockedOnRead => {
                 if paddle_x < ball_x {
-                    input.push_back(1);
+                    input.push(1);
                 } else if ball_x < paddle_x {
-                    input.push_back(-1);
+                    input.push(-1);
                 } else {
-                    input.push_back(0);
+                    input.push(0);
                 }
             }
             intcode::State::Halted => break,

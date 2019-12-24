@@ -20,6 +20,13 @@ pub enum State {
     Halted,
 }
 
+#[derive(Clone, Debug)]
+pub struct RunResult {
+    pub state: State,
+    pub unused_input: Vec<i64>,
+    pub output: Vec<i64>,
+}
+
 fn param_mode_from_int(v: i64) -> ParamMode {
     match v {
         0 => ParamMode::Position,
@@ -71,7 +78,10 @@ impl Computer {
         }
     }
 
-    pub fn run(&mut self, input: &mut VecDeque<i64>, output: &mut VecDeque<i64>) -> State {
+    pub fn run(&mut self, input: &Vec<i64>) -> RunResult {
+        let mut input_q: VecDeque<i64> = input.iter().cloned().collect();
+        let mut output = Vec::new();
+
         loop {
             let instruction = self.mem[self.ip];
             let (opcode, param_modes) = parse_instruction(instruction);
@@ -96,18 +106,22 @@ impl Computer {
                 // read input
                 3 => {
                     // block waiting for input
-                    if input.is_empty() {
-                        return State::BlockedOnRead;
+                    if input_q.is_empty() {
+                        return RunResult {
+                            state: State::BlockedOnRead,
+                            unused_input: Vec::from(input_q),
+                            output: output,
+                        };
                     }
 
                     let dst = self.param_as_dst(self.ip + 1, param_modes[0]);
-                    self.mem[dst] = input.pop_front().unwrap();
+                    self.mem[dst] = input_q.pop_front().unwrap();
                     self.ip += 2;
                 }
                 // write output
                 4 => {
                     let a = self.param_as_val(self.ip + 1, param_modes[0]);
-                    output.push_back(a);
+                    output.push(a);
                     self.ip += 2;
                 }
                 // jump-if-nonzero
@@ -147,7 +161,11 @@ impl Computer {
                 }
                 // exit
                 99 => {
-                    return State::Halted;
+                    return RunResult {
+                        state: State::Halted,
+                        unused_input: Vec::from(input_q),
+                        output: output,
+                    }
                 }
                 // default
                 _ => panic!("address {}: invalid opcode {}", self.ip, instruction),

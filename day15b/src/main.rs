@@ -1,6 +1,6 @@
 use intcode;
 use std::cmp;
-use std::collections::{BinaryHeap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashSet};
 use std::fmt;
 use std::io::{self, Read};
 
@@ -96,21 +96,18 @@ impl Map {
             }
 
             let mut next_cpu = cpu.clone();
-            let mut input = VecDeque::new();
-            input.push_back(dir as i64);
-            let mut output = VecDeque::new();
+            let result = next_cpu.run(&vec![dir as i64]);
 
-            let state = next_cpu.run(&mut input, &mut output);
-            match state {
+            match result.state {
                 intcode::State::BlockedOnRead => (),
                 intcode::State::Halted => panic!("unexpected halt"),
             }
 
-            if output.len() != 1 {
-                panic!("unexpected output length: {}", output.len());
+            if result.output.len() != 1 {
+                panic!("unexpected output length: {}", result.output.len());
             }
 
-            match output.pop_front().unwrap() {
+            match result.output[0] {
                 0 => (),
                 1 => {
                     self.open.insert(next_pos);
