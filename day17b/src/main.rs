@@ -143,6 +143,117 @@ fn path_commands(map: &Vec<Vec<bool>>, bot: BotState) -> Vec<String> {
     }
 }
 
+fn subseq_index_of<T: Eq>(from: &[T], sub: &[T], starting_at: usize) -> Option<usize> {
+    'next_start: for i in starting_at..(from.len() - sub.len() + 1) {
+        for j in 0..sub.len() {
+            if from[i + j] != sub[j] {
+                continue 'next_start;
+            }
+        }
+
+        return Some(i);
+    }
+
+    None
+}
+
+fn subseq_remove<T: Eq + Clone>(from: &[T], sub: &[T]) -> Vec<T> {
+    let mut res = Vec::new();
+    let mut cursor = 0;
+
+    loop {
+        match subseq_index_of(from, sub, cursor) {
+            None => {
+                // If no subsequences remain, copy the rest of the source to
+                // the result.
+                for i in cursor..from.len() {
+                    res.push(from[i].clone());
+                }
+                return res;
+            }
+            Some(n) => {
+                // If there is an instance of the subsequence, copy everything
+                // from the current search cursor to the start of the subsequence.
+                // Then, continue searching after the subsequence.
+                for i in cursor..n {
+                    res.push(from[i].clone());
+                }
+                cursor = n + sub.len();
+            }
+        }
+    }
+}
+
+fn get_largest_repeated_prefix<'a>(
+    from: &'a [String],
+    max_joined_len: usize,
+) -> Option<&'a [String]> {
+    for w in (1..(from.len() / 2)).rev() {
+        let prefix = &from[0..w];
+        if prefix.join(",").len() > max_joined_len {
+            continue;
+        }
+
+        if let Some(_) = subseq_index_of(from, prefix, 0) {
+            return Some(prefix);
+        }
+    }
+
+    None
+}
+
+fn decompose_into_subseqs(
+    seq: &[String],
+    max_subseqs: usize,
+    max_subseq_len: usize,
+) -> Option<Vec<Vec<String>>> {
+    if max_subseqs == 0 {
+        return None;
+    }
+
+    if seq.join(",").len() <= max_subseq_len {
+        return Some(vec![seq.to_vec()]);
+    }
+
+    // Greedily attempt to use the longest possible repeated prefix to generate
+    // further subsequences. If we can't find a set of subsequences that fits
+    // within max_subseqs, we should shorten the size of the prefix and try again.
+    let mut max_prefix_len = max_subseq_len;
+    while max_prefix_len > 0 {
+        match get_largest_repeated_prefix(seq, max_prefix_len) {
+            None => return None,
+            Some(prefix) => {
+                let without_prefix_subseq = subseq_remove(seq, prefix);
+
+                // Here, we make an assumption that every subsequence of the
+                // top-level sequence is repeated at least once. If we didn't
+                // make that assumption, we'd need to split a sequence into
+                // multiple non-repeating sequences based on length, which is
+                // not something that's necessary for this problem input.
+                if without_prefix_subseq.is_empty() {
+                    return Some(vec![prefix.to_vec()]);
+                }
+
+                if let Some(mut subseqs) = decompose_into_subseqs(
+                    without_prefix_subseq.as_slice(),
+                    max_subseqs - 1,
+                    max_subseq_len,
+                ) {
+                    if subseqs.len() < max_subseqs {
+                        let mut result = vec![prefix.to_vec()];
+                        result.append(&mut subseqs);
+                        return Some(result);
+                    }
+                }
+
+                max_prefix_len -= 1;
+            }
+        }
+    }
+
+    None
+}
+
 fn get_input() -> String {
     let mut input = String::new();
     io::stdin().lock().read_to_string(&mut input).unwrap();
@@ -155,6 +266,11 @@ fn main() {
     let (map, bot) = parse_map(&result.output);
     let path = path_commands(&map, bot);
     println!("{}", path.join(","));
+
+    println!(
+        "repeated subsequences: {:?}",
+        decompose_into_subseqs(path.as_slice(), 3, 20)
+    );
 
     // Set program to manual control
     program[0] = 2;
