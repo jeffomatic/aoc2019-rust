@@ -9,6 +9,12 @@ enum Dir {
     W,
 }
 
+#[derive(Copy, Clone, Debug)]
+enum Turn {
+    Left,
+    Right,
+}
+
 impl Dir {
     fn from_char(c: char) -> Option<Dir> {
         match c {
@@ -20,21 +26,20 @@ impl Dir {
         }
     }
 
-    fn left(&self) -> Dir {
-        match self {
-            Dir::N => Dir::W,
-            Dir::S => Dir::E,
-            Dir::E => Dir::N,
-            Dir::W => Dir::S,
-        }
-    }
-
-    fn right(&self) -> Dir {
-        match self {
-            Dir::N => Dir::E,
-            Dir::S => Dir::W,
-            Dir::E => Dir::S,
-            Dir::W => Dir::N,
+    fn turn(&self, t: Turn) -> Dir {
+        match t {
+            Turn::Left => match self {
+                Dir::N => Dir::W,
+                Dir::S => Dir::E,
+                Dir::E => Dir::N,
+                Dir::W => Dir::S,
+            },
+            Turn::Right => match self {
+                Dir::N => Dir::E,
+                Dir::S => Dir::W,
+                Dir::E => Dir::S,
+                Dir::W => Dir::N,
+            },
         }
     }
 
@@ -103,51 +108,38 @@ fn on_scaffold(map: &Vec<Vec<bool>>, p: (i64, i64)) -> bool {
 fn path_commands(map: &Vec<Vec<bool>>, bot: BotState) -> Vec<String> {
     let mut path: Vec<String> = Vec::new();
     let mut bot = bot.clone();
-    let mut steps = 0;
 
     loop {
         // Scan forward
-        let p = bot.orientation.move_from(bot.pos);
-        if on_scaffold(map, p) {
+        let mut steps = 0;
+        loop {
+            let p = bot.orientation.move_from(bot.pos);
+            if !on_scaffold(map, p) {
+                if steps > 0 {
+                    path.push(steps.to_string());
+                }
+                break;
+            }
+
             bot.pos = p;
             steps += 1;
+        }
+
+        // Check for left turn
+        if on_scaffold(map, bot.orientation.turn(Turn::Left).move_from(bot.pos)) {
+            bot.orientation = bot.orientation.turn(Turn::Left);
+            path.push("L".to_string());
             continue;
         }
 
-        if steps > 0 {
-            path.push(steps.to_string());
-            steps = 0;
+        // Check for right turn
+        if on_scaffold(map, bot.orientation.turn(Turn::Right).move_from(bot.pos)) {
+            bot.orientation = bot.orientation.turn(Turn::Right);
+            path.push("R".to_string());
+            continue;
         }
 
-        let left_dir = bot.orientation.left();
-        let right_dir = bot.orientation.right();
-
-        enum Turn {
-            Left,
-            Right,
-        }
-        let mut turn: Option<Turn> = None;
-
-        // Scan left and right
-        if on_scaffold(map, left_dir.move_from(bot.pos)) {
-            turn = Some(Turn::Left);
-        } else if on_scaffold(map, right_dir.move_from(bot.pos)) {
-            turn = Some(Turn::Right);
-        }
-
-        match turn {
-            Some(turn) => match turn {
-                Turn::Left => {
-                    bot.orientation = left_dir;
-                    path.push("L".to_string());
-                }
-                Turn::Right => {
-                    bot.orientation = right_dir;
-                    path.push("R".to_string());
-                }
-            },
-            None => return path,
-        }
+        return path;
     }
 }
 
