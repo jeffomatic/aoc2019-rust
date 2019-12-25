@@ -1,6 +1,5 @@
 use intcode;
 use std::io::{self, Read};
-use std::mem;
 
 #[derive(Copy, Clone, Debug)]
 enum Dir {
@@ -47,18 +46,6 @@ impl Dir {
             Dir::W => (p.0 - 1, p.1),
         }
     }
-
-    fn turn(from: Self, to: Self) -> Option<String> {
-        if mem::discriminant(&from.left()) == mem::discriminant(&to) {
-            return Some("L".to_string());
-        }
-
-        if mem::discriminant(&from.right()) == mem::discriminant(&to) {
-            return Some("R".to_string());
-        }
-
-        None
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -70,14 +57,14 @@ struct BotState {
 // returns a tuple of:
 // - a 2D vector of bools, where true means the location of a scaffold
 // - the current state of the bot
-fn parse_output(output: &Vec<i64>) -> (Vec<Vec<bool>>, BotState) {
+fn parse_map(data: &Vec<i64>) -> (Vec<Vec<bool>>, BotState) {
     let mut rows = Vec::new();
     let mut row = Vec::new();
     let mut bot: Option<BotState> = None;
     let mut i = 0;
     let mut j = 0;
 
-    for c in output.iter() {
+    for c in data.iter() {
         let c = *c as u8 as char;
 
         if c == '\n' {
@@ -113,56 +100,55 @@ fn on_scaffold(map: &Vec<Vec<bool>>, p: (i64, i64)) -> bool {
     0 <= p.0 && p.0 < w && 0 <= p.1 && p.1 < h && map[p.1 as usize][p.0 as usize]
 }
 
-fn scaffold_path(map: &Vec<Vec<bool>>, bot: BotState) -> Vec<BotState> {
-    let mut path = vec![bot];
+fn path_commands(map: &Vec<Vec<bool>>, bot: BotState) -> Vec<String> {
+    let mut path: Vec<String> = Vec::new();
     let mut bot = bot.clone();
+    let mut steps = 0;
 
-    'next_step: loop {
-        let guesses = [
-            bot.orientation,
-            bot.orientation.left(),
-            bot.orientation.right(),
-        ];
-
-        for d in guesses.iter() {
-            let p = d.move_from(bot.pos);
-            if on_scaffold(&map, p) {
-                bot = BotState {
-                    pos: p,
-                    orientation: *d,
-                };
-                path.push(bot);
-                continue 'next_step;
-            }
+    loop {
+        // Scan forward
+        let p = bot.orientation.move_from(bot.pos);
+        if on_scaffold(map, p) {
+            bot.pos = p;
+            steps += 1;
+            continue;
         }
 
-        // If we get here, we've exhausted our guesses, and the path is complete.
-        return path;
-    }
-}
+        if steps > 0 {
+            path.push(steps.to_string());
+            steps = 0;
+        }
 
-fn path_to_commands(path: &Vec<BotState>) -> Vec<String> {
-    let mut commands = Vec::new();
-    let mut forward = 1;
+        let left_dir = bot.orientation.left();
+        let right_dir = bot.orientation.right();
 
-    for i in 0..path.len() - 1 {
-        match Dir::turn(path[i].orientation, path[i + 1].orientation) {
-            None => forward += 1,
-            Some(s) => {
-                if forward > 0 && i > 0 {
-                    commands.push(forward.to_string());
-                    forward = 1;
+        enum Turn {
+            Left,
+            Right,
+        }
+        let mut turn: Option<Turn> = None;
+
+        // Scan left and right
+        if on_scaffold(map, left_dir.move_from(bot.pos)) {
+            turn = Some(Turn::Left);
+        } else if on_scaffold(map, right_dir.move_from(bot.pos)) {
+            turn = Some(Turn::Right);
+        }
+
+        match turn {
+            Some(turn) => match turn {
+                Turn::Left => {
+                    bot.orientation = left_dir;
+                    path.push("L".to_string());
                 }
-                commands.push(s);
-            }
+                Turn::Right => {
+                    bot.orientation = right_dir;
+                    path.push("R".to_string());
+                }
+            },
+            None => return path,
         }
     }
-
-    if forward > 0 {
-        commands.push(forward.to_string());
-    }
-
-    commands
 }
 
 fn get_input() -> String {
@@ -174,10 +160,9 @@ fn get_input() -> String {
 fn main() {
     let mut program: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
     let result = intcode::Computer::new(&program).run(&Vec::new());
-    let (map, bot) = parse_output(&result.output);
-    let path = scaffold_path(&map, bot);
-    let commands = path_to_commands(&path);
-    println!("{}", commands.join(","));
+    let (map, bot) = parse_map(&result.output);
+    let path = path_commands(&map, bot);
+    println!("{}", path.join(","));
 
     // Set program to manual control
     program[0] = 2;
