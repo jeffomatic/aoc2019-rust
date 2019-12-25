@@ -194,7 +194,7 @@ fn get_largest_repeated_prefix<'a>(
             continue;
         }
 
-        if let Some(_) = subseq_index_of(from, prefix, 0) {
+        if let Some(_) = subseq_index_of(from, prefix, prefix.len()) {
             return Some(prefix);
         }
     }
@@ -254,6 +254,26 @@ fn decompose_into_subseqs(
     None
 }
 
+fn decompose_to_subseq_indexes(seq: &[String], subseqs: &Vec<Vec<String>>) -> Option<Vec<usize>> {
+    for (i, prefix) in subseqs.iter().enumerate() {
+        if seq.starts_with(prefix) {
+            let (_, without_prefix) = seq.split_at(prefix.len());
+            let mut result = vec![i];
+
+            if without_prefix.is_empty() {
+                return Some(result);
+            }
+
+            if let Some(mut indexes) = decompose_to_subseq_indexes(without_prefix, subseqs) {
+                result.append(&mut indexes);
+                return Some(result);
+            }
+        }
+    }
+
+    None
+}
+
 fn get_input() -> String {
     let mut input = String::new();
     io::stdin().lock().read_to_string(&mut input).unwrap();
@@ -264,26 +284,38 @@ fn main() {
     let mut program: Vec<i64> = get_input().split(",").map(|s| s.parse().unwrap()).collect();
     let result = intcode::Computer::new(&program).run(&Vec::new());
     let (map, bot) = parse_map(&result.output);
+
     let path = path_commands(&map, bot);
-    println!("{}", path.join(","));
+    println!("Scaffold path: {}", path.join(","));
 
-    println!(
-        "repeated subsequences: {:?}",
-        decompose_into_subseqs(path.as_slice(), 3, 20)
-    );
+    let max_subseqs = 3;
+    let max_subseq_len = 20;
+    let subseqs = decompose_into_subseqs(path.as_slice(), max_subseqs, max_subseq_len).unwrap();
+    println!("Repeated subsequences: {:?}", subseqs);
 
-    // Set program to manual control
-    program[0] = 2;
+    let subseq_indexes = decompose_to_subseq_indexes(path.as_slice(), &subseqs).unwrap();
+    println!("Sequence as subsequence indexes: {:?}", subseq_indexes);
 
-    let input_str = "A,B,B,A,B,C,A,C,B,C
-L,4,L,6,L,8,L,12
-L,8,R,12,L,12
-R,12,L,6,L,6,L,8
-n
-";
+    let main_routine = subseq_indexes
+        .iter()
+        .map(|n| match n {
+            0 => "A",
+            1 => "B",
+            2 => "C",
+            unknown => panic!("invalid subseuqnce index {}", unknown),
+        })
+        .collect::<Vec<&str>>()
+        .join(",");
+
+    let mut input_lines = vec![main_routine];
+    for s in subseqs.iter() {
+        input_lines.push(s.join(","));
+    }
+    input_lines.push("n".to_string());
+    let input_str = input_lines.join("\n") + "\n";
+
+    program[0] = 2; // set program to manual control
     let input: Vec<i64> = input_str.chars().map(|c| c as i64).collect();
-
-    // Run program with routine
     let result = intcode::Computer::new(&program).run(&input);
     println!("{}", result.output.last().unwrap());
 }
