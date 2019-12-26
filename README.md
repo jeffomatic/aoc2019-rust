@@ -89,3 +89,15 @@ fn main() {
     ...
 }
 ```
+
+## Debugging
+
+### Launch
+
+```
+$ cd dayXYZ
+$ lldb target/debug/dayXYZ
+(lldb) b <line no>
+(lldb) process launch -i ./input
+...
+```
