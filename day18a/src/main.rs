@@ -30,12 +30,12 @@ fn shortest_path(reachable: &HashSet<Point>, src: Point, dst: Point) -> Option<V
     let mut q: BinaryHeap<Path> = BinaryHeap::new();
     q.push(Path { path: vec![src] });
 
-    while !q.is_empty() {
-        let pathwrap = q.pop().unwrap();
-        let cur = *pathwrap.path.last().unwrap();
+    while let Some(wrapper) = q.pop() {
+        let path = wrapper.path;
+        let cur = *path.last().unwrap();
 
         if cur == dst {
-            return Some(pathwrap.path);
+            return Some(path);
         }
 
         for n in [
@@ -50,7 +50,7 @@ fn shortest_path(reachable: &HashSet<Point>, src: Point, dst: Point) -> Option<V
                 continue;
             }
 
-            let mut new_path = pathwrap.path.to_vec();
+            let mut new_path = path.to_vec();
             new_path.push(*n);
             q.push(Path { path: new_path });
 
@@ -80,7 +80,7 @@ struct Map {
 }
 
 impl Map {
-    fn make_path(&self, src: Point, dst: Point) -> Option<MapEdge> {
+    fn make_edge(&self, src: Point, dst: Point) -> Option<MapEdge> {
         let mut points = shortest_path(&self.open, src, dst)?;
 
         // ignore first item, which is the source.
@@ -116,7 +116,7 @@ impl Map {
         for p in key_locs.iter() {
             self.graph.insert(
                 (self.start_pos, *p),
-                self.make_path(self.start_pos, *p).unwrap(),
+                self.make_edge(self.start_pos, *p).unwrap(),
             );
         }
 
@@ -126,8 +126,8 @@ impl Map {
                 let p1 = key_locs[i];
                 let p2 = key_locs[j];
 
-                self.graph.insert((p1, p2), self.make_path(p1, p2).unwrap());
-                self.graph.insert((p2, p1), self.make_path(p2, p1).unwrap());
+                self.graph.insert((p1, p2), self.make_edge(p1, p2).unwrap());
+                self.graph.insert((p2, p1), self.make_edge(p2, p1).unwrap());
             }
         }
     }
@@ -221,12 +221,10 @@ impl State {
         }
     }
 
-    // Returns a hashable, comparable tuple of the essential state, modulo
-    // key visitation order.
-    fn cache_key(&self) -> (Point, usize, String) {
+    fn search_key(&self) -> (Point, String) {
         let mut keys: Vec<String> = self.keys.iter().map(|c| c.to_string()).collect();
         keys.sort();
-        (self.pos, self.steps, keys.join(""))
+        (self.pos, keys.join(""))
     }
 }
 
@@ -263,54 +261,34 @@ impl PartialOrd for StateForSearch {
 fn search_paths(map: &Map) -> Option<State> {
     let s = State::new(map.start_pos);
 
-    let mut visited = HashSet::new();
-    let mut best: Option<State> = None;
+    let mut visited = HashMap::new();
     let mut q: BinaryHeap<StateForSearch> = BinaryHeap::new();
     q.push(StateForSearch { state: s });
 
-    while !q.is_empty() {
-        let cur = q.pop().unwrap().state;
+    while let Some(wrapper) = q.pop() {
+        let cur = wrapper.state;
 
-        // This is the success condition: early-out if the top of the priority
-        // queue cannot possibly beat the current solution.
-        if let Some(prev_best) = best.clone() {
-            if prev_best.steps <= cur.steps {
-                break;
-            }
+        if cur.keys.len() == map.keys.len() {
+            return Some(cur);
         }
-
-        let cache_key = cur.cache_key();
-        if visited.contains(&cache_key) {
-            continue;
-        }
-        visited.insert(cache_key);
 
         for edge in cur.edges_to_next_keys(&map).iter() {
             let mut new_state = cur.clone();
             new_state.follow_edge(edge);
 
-            if new_state.keys.len() == map.keys.len() {
-                // We've found a solution. Replace any existing solution if it's
-                // shorter.
-                best = match best {
-                    None => Some(new_state),
-                    Some(prev_best) => {
-                        if new_state.steps < prev_best.steps {
-                            Some(new_state)
-                        } else {
-                            Some(prev_best)
-                        }
-                    }
-                };
-
-                continue;
+            let search_key = new_state.search_key();
+            if let Some(steps) = visited.get(&search_key) {
+                if new_state.steps >= *steps {
+                    continue;
+                }
             }
 
+            visited.insert(search_key, new_state.steps);
             q.push(StateForSearch { state: new_state });
         }
     }
 
-    best
+    None
 }
 
 fn get_input() -> String {
