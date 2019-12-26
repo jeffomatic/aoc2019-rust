@@ -230,14 +230,12 @@ impl State {
         }
     }
 
-    // Returns a hashable, comparable tuple of the essential state, modulo
-    // key visitation order.
-    fn cache_key(&self) -> (Vec<Point>, usize, String) {
+    fn search_key(&self) -> (Vec<Point>, String) {
         let mut positions: Vec<Point> = self.positions.iter().cloned().collect();
         positions.sort();
         let mut keys: Vec<String> = self.keys.iter().map(|c| c.to_string()).collect();
         keys.sort();
-        (positions, self.steps, keys.join(""))
+        (positions, keys.join(""))
     }
 }
 
@@ -274,54 +272,36 @@ impl PartialOrd for StateForSearch {
 fn search(map: &Map) -> Option<State> {
     let s = State::new(&map.starting_points);
 
-    let mut visited = HashSet::new();
-    let mut best: Option<State> = None;
+    let mut visited = HashMap::new();
     let mut q: BinaryHeap<StateForSearch> = BinaryHeap::new();
     q.push(StateForSearch { state: s });
 
     while let Some(wrapper) = q.pop() {
         let state = wrapper.state;
 
-        // This is the success condition: early-out if the top of the priority
-        // queue cannot possibly beat the current solution.
-        if let Some(prev_best) = best.clone() {
-            if prev_best.steps <= state.steps {
-                break;
-            }
+        if state.keys.len() == map.keys.len() {
+            return Some(state);
         }
-
-        let cache_key = state.cache_key();
-        if visited.contains(&cache_key) {
-            continue;
-        }
-        visited.insert(cache_key);
 
         for edge in state.edges_to_next_keys(&map).iter() {
             let mut new_state = state.clone();
             new_state.follow_edge(edge);
 
-            // If we haven't found all the keys yet, keep searching from here.
-            if new_state.keys.len() < map.keys.len() {
-                q.push(StateForSearch { state: new_state });
-                continue;
+            // don't continue if we've reached a point where a better path
+            // already exists
+            let search_key = new_state.search_key();
+            if let Some(steps) = visited.get(&search_key) {
+                if new_state.steps >= *steps {
+                    continue;
+                }
             }
 
-            // Otherwise, we've found a solution. Replace any existing solution
-            // if it's shorter.
-            best = match best {
-                None => Some(new_state),
-                Some(prev_best) => {
-                    if new_state.steps < prev_best.steps {
-                        Some(new_state)
-                    } else {
-                        Some(prev_best)
-                    }
-                }
-            };
+            visited.insert(search_key, new_state.steps);
+            q.push(StateForSearch { state: new_state });
         }
     }
 
-    best
+    None
 }
 
 fn get_input() -> String {
