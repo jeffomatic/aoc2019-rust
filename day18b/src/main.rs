@@ -30,12 +30,12 @@ fn shortest_path(reachable: &HashSet<Point>, src: Point, dst: Point) -> Option<V
     let mut q: BinaryHeap<Path> = BinaryHeap::new();
     q.push(Path { path: vec![src] });
 
-    while !q.is_empty() {
-        let pathwrap = q.pop().unwrap();
-        let cur = *pathwrap.path.last().unwrap();
+    while let Some(wrapper) = q.pop() {
+        let path = wrapper.path;
+        let cur = *path.last().unwrap();
 
         if cur == dst {
-            return Some(pathwrap.path);
+            return Some(path);
         }
 
         for n in [
@@ -50,7 +50,7 @@ fn shortest_path(reachable: &HashSet<Point>, src: Point, dst: Point) -> Option<V
                 continue;
             }
 
-            let mut new_path = pathwrap.path.to_vec();
+            let mut new_path = path.to_vec();
             new_path.push(*n);
             q.push(Path { path: new_path });
 
@@ -73,14 +73,14 @@ struct MapEdge {
 #[derive(Debug)]
 struct Map {
     open: HashSet<Point>,
-    start_pos: Point,
+    starting_points: HashSet<Point>,
     doors: HashMap<Point, char>,
     keys: HashMap<Point, char>,
     graph: HashMap<(Point, Point), MapEdge>,
 }
 
 impl Map {
-    fn make_path(&self, src: Point, dst: Point) -> Option<MapEdge> {
+    fn make_edge(&self, src: Point, dst: Point) -> Option<MapEdge> {
         let mut points = shortest_path(&self.open, src, dst)?;
 
         // ignore first item, which is the source.
@@ -113,11 +113,12 @@ impl Map {
         let key_locs: Vec<Point> = self.keys.keys().cloned().collect();
 
         // Add a path between the starting point and each key location.
-        for p in key_locs.iter() {
-            self.graph.insert(
-                (self.start_pos, *p),
-                self.make_path(self.start_pos, *p).unwrap(),
-            );
+        for keypos in key_locs.iter() {
+            for start_pos in self.starting_points.iter() {
+                if let Some(edge) = self.make_edge(*start_pos, *keypos) {
+                    self.graph.insert((*start_pos, *keypos), edge);
+                }
+            }
         }
 
         // Add a path between each key and another key.
@@ -126,8 +127,13 @@ impl Map {
                 let p1 = key_locs[i];
                 let p2 = key_locs[j];
 
-                self.graph.insert((p1, p2), self.make_path(p1, p2).unwrap());
-                self.graph.insert((p2, p1), self.make_path(p2, p1).unwrap());
+                if let Some(edge) = self.make_edge(p1, p2) {
+                    self.graph.insert((p1, p2), edge);
+                }
+
+                if let Some(edge) = self.make_edge(p2, p1) {
+                    self.graph.insert((p2, p1), edge);
+                }
             }
         }
     }
@@ -139,7 +145,7 @@ impl FromStr for Map {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut map = Map {
             open: HashSet::new(),
-            start_pos: (0, 0),
+            starting_points: HashSet::new(),
             doors: HashMap::new(),
             keys: HashMap::new(),
             graph: HashMap::new(),
@@ -155,7 +161,7 @@ impl FromStr for Map {
                 }
 
                 if c == '@' {
-                    map.start_pos = p;
+                    map.starting_points.insert(p);
                 } else if (b'A'..=b'Z').contains(&(c as u8)) {
                     map.doors.insert(p, c.to_ascii_lowercase());
                 } else if (b'a'..=b'z').contains(&(c as u8)) {
@@ -172,15 +178,15 @@ impl FromStr for Map {
 
 #[derive(Clone, Debug)]
 struct State {
-    pos: Point,
+    positions: HashSet<Point>,
     steps: usize,
     keys: Vec<char>,
 }
 
 impl State {
-    fn new(start_pos: Point) -> State {
+    fn new(starting_points: &HashSet<Point>) -> State {
         State {
-            pos: start_pos,
+            positions: starting_points.iter().map(|p| *p).collect(),
             steps: 0,
             keys: Vec::new(),
         }
@@ -189,28 +195,31 @@ impl State {
     fn edges_to_next_keys<'a>(&self, map: &'a Map) -> Vec<&'a MapEdge> {
         let mut edges = Vec::new();
 
-        for (pos, key) in map.keys.iter() {
+        for (keypos, key) in map.keys.iter() {
             // Don't worry about keys we already have.
             if self.keys.contains(key) {
                 continue;
             }
 
-            let edge = map.graph.get(&(self.pos, *pos)).unwrap();
+            for p in self.positions.iter() {
+                if let Some(edge) = map.graph.get(&(*p, *keypos)) {
+                    // We can't use the edge if we don't have the right keys.
+                    let keyset: HashSet<char> = self.keys.iter().map(|c| *c).collect();
+                    if !edge.doors.is_subset(&keyset) {
+                        continue;
+                    }
 
-            // We can't use the edge if we don't have the right keys.
-            let keyset: HashSet<char> = self.keys.iter().map(|c| *c).collect();
-            if !edge.doors.is_subset(&keyset) {
-                continue;
+                    edges.push(edge);
+                }
             }
-
-            edges.push(edge);
         }
 
         edges
     }
 
     fn follow_edge(&mut self, edge: &MapEdge) {
-        self.pos = edge.dst;
+        self.positions.remove(&edge.src);
+        self.positions.insert(edge.dst);
         self.steps += edge.steps;
 
         // only add new keys
@@ -223,10 +232,12 @@ impl State {
 
     // Returns a hashable, comparable tuple of the essential state, modulo
     // key visitation order.
-    fn cache_key(&self) -> (Point, usize, String) {
+    fn cache_key(&self) -> (Vec<Point>, usize, String) {
+        let mut positions: Vec<Point> = self.positions.iter().cloned().collect();
+        positions.sort();
         let mut keys: Vec<String> = self.keys.iter().map(|c| c.to_string()).collect();
         keys.sort();
-        (self.pos, self.steps, keys.join(""))
+        (positions, self.steps, keys.join(""))
     }
 }
 
@@ -260,53 +271,53 @@ impl PartialOrd for StateForSearch {
     }
 }
 
-fn search_paths(map: &Map) -> Option<State> {
-    let s = State::new(map.start_pos);
+fn search(map: &Map) -> Option<State> {
+    let s = State::new(&map.starting_points);
 
     let mut visited = HashSet::new();
     let mut best: Option<State> = None;
     let mut q: BinaryHeap<StateForSearch> = BinaryHeap::new();
     q.push(StateForSearch { state: s });
 
-    while !q.is_empty() {
-        let cur = q.pop().unwrap().state;
+    while let Some(wrapper) = q.pop() {
+        let state = wrapper.state;
 
         // This is the success condition: early-out if the top of the priority
         // queue cannot possibly beat the current solution.
         if let Some(prev_best) = best.clone() {
-            if prev_best.steps <= cur.steps {
+            if prev_best.steps <= state.steps {
                 break;
             }
         }
 
-        let cache_key = cur.cache_key();
+        let cache_key = state.cache_key();
         if visited.contains(&cache_key) {
             continue;
         }
         visited.insert(cache_key);
 
-        for edge in cur.edges_to_next_keys(&map).iter() {
-            let mut new_state = cur.clone();
+        for edge in state.edges_to_next_keys(&map).iter() {
+            let mut new_state = state.clone();
             new_state.follow_edge(edge);
 
-            if new_state.keys.len() == map.keys.len() {
-                // We've found a solution. Replace any existing solution if it's
-                // shorter.
-                best = match best {
-                    None => Some(new_state),
-                    Some(prev_best) => {
-                        if new_state.steps < prev_best.steps {
-                            Some(new_state)
-                        } else {
-                            Some(prev_best)
-                        }
-                    }
-                };
-
+            // If we haven't found all the keys yet, keep searching from here.
+            if new_state.keys.len() < map.keys.len() {
+                q.push(StateForSearch { state: new_state });
                 continue;
             }
 
-            q.push(StateForSearch { state: new_state });
+            // Otherwise, we've found a solution. Replace any existing solution
+            // if it's shorter.
+            best = match best {
+                None => Some(new_state),
+                Some(prev_best) => {
+                    if new_state.steps < prev_best.steps {
+                        Some(new_state)
+                    } else {
+                        Some(prev_best)
+                    }
+                }
+            };
         }
     }
 
@@ -321,5 +332,5 @@ fn get_input() -> String {
 
 fn main() {
     let map: Map = get_input().parse().unwrap();
-    println!("{:?}", search_paths(&map).unwrap());
+    println!("{:?}", search(&map).unwrap());
 }
