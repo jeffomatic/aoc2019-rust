@@ -8,6 +8,7 @@ pub struct Map {
     pub available: HashSet<Pos>,
     pub start: Pos,
     pub end: Pos,
+    pub labels_by_pos: HashMap<Pos, String>,
     pub portal_destinations: HashMap<Pos, Pos>,
 }
 
@@ -258,8 +259,13 @@ impl FromStr for Map {
             }
         }
 
+        let mut labels_by_pos = HashMap::new();
         let mut portal_destinations = HashMap::new();
         for (label, points) in &pos_by_label {
+            for p in points.iter() {
+                labels_by_pos.insert(*p, label.clone());
+            }
+
             if points.len() == 2 {
                 portal_destinations.insert(points[0], points[1]);
                 portal_destinations.insert(points[1], points[0]);
@@ -270,6 +276,7 @@ impl FromStr for Map {
             available: available_points(&raw),
             start: pos_by_label.get("AA").unwrap()[0],
             end: pos_by_label.get("ZZ").unwrap()[0],
+            labels_by_pos: labels_by_pos,
             portal_destinations: portal_destinations,
         })
     }
