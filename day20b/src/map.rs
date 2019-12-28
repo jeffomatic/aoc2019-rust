@@ -3,13 +3,28 @@ use std::str::FromStr;
 
 pub type Pos = (usize, usize);
 
+enum PortalDir {
+    Up,
+    Down,
+}
+
+struct Portal {
+    pub pos: Pos,
+    pub dir: PortalDir,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Jump {
+    pub pos: Pos,
+    pub depth_change: i64,
+}
+
 #[derive(Debug)]
 pub struct Map {
     pub available: HashSet<Pos>,
     pub start: Pos,
     pub end: Pos,
-    pub labels_by_pos: HashMap<Pos, String>,
-    pub portal_destinations: HashMap<Pos, Pos>,
+    pub jumps_by_pos: HashMap<Pos, Jump>,
 }
 
 #[derive(Debug)]
@@ -26,20 +41,20 @@ fn exterior_extents(raw: &RawMap) -> Extents {
     let n = 2;
     let w = 2;
 
-    let mut e = 0;
-    for x in (w..raw[n].len()).rev() {
-        let c = raw[n][x];
-        if c == '#' || c == '.' {
-            e = x;
-            break;
-        }
-    }
-
     let mut s = 0;
     for y in n..raw.len() {
         let c = raw[y][w];
         if c != '#' && c != '.' {
             s = y - 1;
+            break;
+        }
+    }
+
+    let mut e = 0;
+    for x in (w..raw[n].len()).rev() {
+        let c = raw[n][x];
+        if c == '#' || c == '.' {
+            e = x;
             break;
         }
     }
@@ -55,45 +70,47 @@ fn exterior_extents(raw: &RawMap) -> Extents {
 fn interior_extents(raw: &RawMap) -> Extents {
     let exterior = exterior_extents(raw);
 
-    let mut interior = Extents {
-        n: 0,
-        s: 0,
-        w: 0,
-        e: 0,
-    };
-
     // find north/west edges
+    let mut n = 0;
+    let mut w = 0;
     'nw_interior: for y in exterior.n..exterior.s {
         for x in exterior.w..exterior.e {
             if raw[y][x] == ' ' {
-                interior.n = y;
-                interior.w = x;
+                n = y;
+                w = x;
                 break 'nw_interior;
             }
         }
     }
 
-    // find east edge
-    for x in interior.w..exterior.e {
-        if raw[interior.n][x] == '#' {
-            interior.e = x - 1;
-            break;
-        }
-    }
-
     // find south edge
-    for y in interior.n..exterior.s {
-        if raw[y][interior.w] == '#' {
-            interior.s = y - 1;
+    let mut s = 0;
+    for y in n..exterior.s {
+        if raw[y][w] == '#' {
+            s = y - 1;
             break;
         }
     }
 
-    interior
+    // find east edge
+    let mut e = 0;
+    for x in w..exterior.e {
+        if raw[n][x] == '#' {
+            e = x - 1;
+            break;
+        }
+    }
+
+    Extents {
+        n: n,
+        s: s,
+        w: w,
+        e: e,
+    }
 }
 
 // Assume all labels have two characters
-fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
+fn portal_labels(raw: &RawMap) -> Vec<(String, Portal)> {
     let mut res = Vec::new();
 
     let exterior = exterior_extents(&raw);
@@ -109,7 +126,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y + 1][x]].iter().collect();
         let p = (x, exterior.n);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Up,
+            },
+        ));
     }
 
     // North interior labels
@@ -122,7 +145,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y + 1][x]].iter().collect();
         let p = (x, interior.n - 1);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Down,
+            },
+        ));
     }
 
     // South exterior labels
@@ -135,7 +164,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y + 1][x]].iter().collect();
         let p = (x, exterior.s);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Up,
+            },
+        ));
     }
 
     // South interior labels
@@ -148,7 +183,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y + 1][x]].iter().collect();
         let p = (x, interior.s + 1);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Down,
+            },
+        ));
     }
 
     // West exterior labels
@@ -161,7 +202,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y][x + 1]].iter().collect();
         let p = (exterior.w, y);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Up,
+            },
+        ));
     }
 
     // West interior labels
@@ -174,7 +221,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y][x + 1]].iter().collect();
         let p = (interior.w - 1, y);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Down,
+            },
+        ));
     }
 
     // East exterior labels
@@ -191,7 +244,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y][x + 1]].iter().collect();
         let p = (exterior.e, y);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Up,
+            },
+        ));
     }
 
     // East interior labels
@@ -204,7 +263,13 @@ fn portal_labels(raw: &RawMap) -> Vec<(String, Pos)> {
 
         let label: String = vec![c, raw[y][x + 1]].iter().collect();
         let p = (interior.e + 1, y);
-        res.push((label, p));
+        res.push((
+            label,
+            Portal {
+                pos: p,
+                dir: PortalDir::Down,
+            },
+        ));
     }
 
     res
@@ -249,35 +314,50 @@ impl FromStr for Map {
             }
         }
 
-        let mut pos_by_label = HashMap::new();
-        for (label, p) in portal_labels(&raw) {
-            match pos_by_label.get_mut(&label) {
+        let mut portals_by_label = HashMap::new();
+        for (label, portal) in portal_labels(&raw) {
+            match portals_by_label.get_mut(&label) {
                 None => {
-                    pos_by_label.insert(label, vec![p]);
+                    portals_by_label.insert(label, vec![portal]);
                 }
-                Some(points) => points.push(p),
+                Some(points) => points.push(portal),
             }
         }
 
-        let mut labels_by_pos = HashMap::new();
-        let mut portal_destinations = HashMap::new();
-        for (label, points) in &pos_by_label {
-            for p in points.iter() {
-                labels_by_pos.insert(*p, label.clone());
+        let mut jumps_by_pos = HashMap::new();
+        for (_label, portals) in &portals_by_label {
+            if portals.len() != 2 {
+                continue;
             }
 
-            if points.len() == 2 {
-                portal_destinations.insert(points[0], points[1]);
-                portal_destinations.insert(points[1], points[0]);
-            }
+            jumps_by_pos.insert(
+                portals[0].pos,
+                Jump {
+                    pos: portals[1].pos,
+                    depth_change: match portals[0].dir {
+                        PortalDir::Up => -1,
+                        PortalDir::Down => 1,
+                    },
+                },
+            );
+
+            jumps_by_pos.insert(
+                portals[1].pos,
+                Jump {
+                    pos: portals[0].pos,
+                    depth_change: match portals[1].dir {
+                        PortalDir::Up => -1,
+                        PortalDir::Down => 1,
+                    },
+                },
+            );
         }
 
         Ok(Map {
             available: available_points(&raw),
-            start: pos_by_label.get("AA").unwrap()[0],
-            end: pos_by_label.get("ZZ").unwrap()[0],
-            labels_by_pos: labels_by_pos,
-            portal_destinations: portal_destinations,
+            start: portals_by_label.get("AA").unwrap()[0].pos,
+            end: portals_by_label.get("ZZ").unwrap()[0].pos,
+            jumps_by_pos: jumps_by_pos,
         })
     }
 }

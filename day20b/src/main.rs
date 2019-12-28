@@ -1,13 +1,18 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
-
 use std::io::{self, Read};
 
 mod map;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+struct LayerPos {
+    pos: map::Pos,
+    depth: usize,
+}
+
 #[derive(Clone, Eq, PartialEq)]
 struct Path {
-    path: Vec<map::Pos>,
+    path: Vec<LayerPos>,
 }
 
 impl Ord for Path {
@@ -23,7 +28,7 @@ impl PartialOrd for Path {
     }
 }
 
-pub fn shortest_path(map: &map::Map, src: map::Pos, dst: map::Pos) -> Option<Vec<map::Pos>> {
+fn shortest_path(map: &map::Map, src: LayerPos, dst: LayerPos) -> Option<Vec<LayerPos>> {
     let mut min_to_pos = HashMap::new();
     min_to_pos.insert(src, 1);
 
@@ -38,24 +43,38 @@ pub fn shortest_path(map: &map::Map, src: map::Pos, dst: map::Pos) -> Option<Vec
             return Some(path);
         }
 
-        // If we're on a portal tile, the use the neighbors of the corresponding point.
-        //
-        // Only include neighbors that:
-        // - are actually on the map
-        // - don't have a better path leading to them
         let mut neighbors = vec![
-            (cur.0 - 1, cur.1),
-            (cur.0 + 1, cur.1),
-            (cur.0, cur.1 - 1),
-            (cur.0, cur.1 + 1),
+            LayerPos {
+                pos: (cur.pos.0 - 1, cur.pos.1),
+                depth: cur.depth,
+            },
+            LayerPos {
+                pos: (cur.pos.0 + 1, cur.pos.1),
+                depth: cur.depth,
+            },
+            LayerPos {
+                pos: (cur.pos.0, cur.pos.1 - 1),
+                depth: cur.depth,
+            },
+            LayerPos {
+                pos: (cur.pos.0, cur.pos.1 + 1),
+                depth: cur.depth,
+            },
         ];
 
-        if let Some(other) = map.portal_destinations.get(&cur) {
-            neighbors.push(*other);
+        // If we're on a portal tile, include corresponding portal tile.
+        if let Some(jump) = map.jumps_by_pos.get(&cur.pos) {
+            let new_depth = (cur.depth as i64) + jump.depth_change;
+            if new_depth >= 0 {
+                neighbors.push(LayerPos {
+                    pos: jump.pos,
+                    depth: new_depth as usize,
+                });
+            }
         }
 
         for n in neighbors.iter() {
-            if !map.available.contains(n) {
+            if !map.available.contains(&n.pos) {
                 continue;
             }
 
@@ -84,7 +103,17 @@ fn get_input() -> String {
 
 fn main() {
     let m: map::Map = get_input().parse().unwrap();
-    println!("{:?}", m);
-    let path = shortest_path(&m, m.start, m.end).unwrap();
-    println!("{} steps: {:?}", path.len() - 1, path);
+    let path = shortest_path(
+        &m,
+        LayerPos {
+            pos: m.start,
+            depth: 0,
+        },
+        LayerPos {
+            pos: m.end,
+            depth: 0,
+        },
+    )
+    .unwrap();
+    println!("{} steps", path.len() - 1);
 }
