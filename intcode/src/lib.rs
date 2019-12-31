@@ -55,6 +55,14 @@ pub fn program_from_string(s: &String) -> Vec<i64> {
         .collect()
 }
 
+pub fn stream_from_string(s: &str) -> Vec<i64> {
+    s.chars().map(|c| c as u8 as i64).collect()
+}
+
+pub fn stream_to_string(v: &Vec<i64>) -> String {
+    v.iter().map(|n| *n as u8 as char).collect()
+}
+
 impl Computer {
     pub fn new(program: &Vec<i64>) -> Computer {
         let mut mem = vec![0; 100000];
