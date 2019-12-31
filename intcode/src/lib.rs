@@ -47,6 +47,14 @@ fn parse_instruction(instruction: i64) -> (i64, [ParamMode; 3]) {
     )
 }
 
+pub fn program_from_string(s: &String) -> Vec<i64> {
+    s.trim()
+        .to_string()
+        .split(",")
+        .map(|s| s.parse().unwrap())
+        .collect()
+}
+
 impl Computer {
     pub fn new(program: &Vec<i64>) -> Computer {
         let mut mem = vec![0; 100000];
